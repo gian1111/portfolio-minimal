@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Arimo:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Background Shader Canvas -->
+    <canvas id="shaderCanvas"></canvas>
+    
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="name">Gianmarco Malandra</h1>
+            <p class="subtitle">Designer & Visual Artist</p>
+        </header>
+
+        <!-- Contact -->
+        <section class="section">
+            <h2 class="section-title">Links</h2>
+            <div class="contact-links">
+                <a href="gianmarco@virgilio.it" class="link">Email</a>
+                <a href="https://www.linkedin.com/in/gianmarco-malandra-a23140161/" class="link" target="_blank">Linkedin</a>
+                <a href="https://www.instagram.com/gnmlnd/" class="link" target="_blank">Instagram</a>
+                <a href="about.html" class="link">About Me</a>
+            </div>
+        </section>
+
+        <!-- Projects -->
+        <section class="section">
+            <h2 class="section-title">Projects</h2>
+            
+            <!-- Filter Tags -->
+            <div class="filter-tags" id="filterTags">
+                <!-- Filtri caricati dinamicamente -->
+            </div>
+
+            <div class="projects-list" id="projectsList">
+                <!-- Progetti caricati dinamicamente da projects-data.js -->
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p class="footer-text">© 2026. Made with minimal aesthetic.</p>
+        </footer>
+    </div>
+
+    <script src="shader.js"></script>
+    <script src="projects-data.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
