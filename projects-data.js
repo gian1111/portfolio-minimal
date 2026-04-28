@@ -41,16 +41,28 @@ const projectsData = [
         tags: ["Art Direction", "Social Media"],
         image: "https://via.placeholder.com/800x400?text=Progetto+2",
         date: "2026",
+        galleryLayout: [1, 3, 3],
         gallery: [
-            { src: "https://via.placeholder.com/600x400?text=Proj2+1", size: "normal" },
-            { src: "https://via.placeholder.com/400x400?text=Proj2+2", size: "normal" },
-            { src: "https://via.placeholder.com/800x400?text=Proj2+3", size: "wide" }
+            { src: "optimized/fractures1/Piano-Month-Banner-Updated.jpg", size: "wide" , section: 0},
+            { src: "optimized/fractures1/99bundle_nodirt.jpg", size: "normal" , section: 1},
+            { src: "optimized/fractures1/lightbundle_nodirt.jpg", size: "normal" ,section: 1 },
+            { src: "optimized/fractures1/originalbundle_notext.jpg", size: "normal" , section: 1},
+            { src: "optimized/fractures1/lightbundle2.jpg", size: "normal", section: 2 },
+            { src: "optimized/fractures1/originalbundle2.jpg", size: "normal", section: 2 },
+            { src: "optimized/fractures1/99bundle2.jpg", size: "normal" , section: 2},
+        ],
+        blocks: [
+            {
+                type: "text",
+                title: "Design notes",
+                text: "System: modular grid, editorial spacing.\n\nGoal: keep Napoli’s iconic blue dominant while introducing modern hierarchy for fast scanning on mobile."
+            }
         ],
         details: {
-            client: "Tech Company",
+            client: "Fracture Sounds",
             year: "2026",
             role: "Graphic Designer, Art Director",
-            tools: "React, Tailwind",
+            tools: "Figma, Adobe Photoshop, Adobe Illustrator",
             link: "https://example.com"
         }
     },

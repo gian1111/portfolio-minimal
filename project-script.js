@@ -1,9 +1,9 @@
 // Script per la pagina di dettaglio del progetto
 
-let currentGalleryImages = [];
+let currentGalleries = [];
 let currentImageIndex = 0;
 let lightboxItems = [];
-let galleryIndexToLightboxIndex = new Map();
+let galleryKeyToLightboxIndex = new Map(); // key: `${gIdx}:${idx}` -> lightbox index
 
 document.addEventListener('DOMContentLoaded', () => {
     loadProjectDetail();
@@ -19,14 +19,14 @@ function getUrlParameter(name) {
 // Funzione per caricare i dettagli del progetto
 function loadProjectDetail() {
     const projectId = getUrlParameter('id');
-    
+
     if (!projectId) {
         document.body.innerHTML = '<div class="container"><p>Progetto non trovato.</p></div>';
         return;
     }
 
     const project = getProjectById(projectId);
-    
+
     if (!project) {
         document.body.innerHTML = '<div class="container"><p>Progetto non trovato.</p></div>';
         return;
@@ -38,10 +38,33 @@ function loadProjectDetail() {
     document.getElementById('projectDate').textContent = project.date;
     document.getElementById('projectDescription').textContent = project.fullDescription;
 
-    // Carica la gallery
-    currentGalleryImages = project.gallery;
-    setupLightboxItems(project.gallery);
-    loadGallery(project.gallery, project.galleryLayout);
+    // Prepare galleries: new format is project.galleries = [{ gallery: [...], layout: [...], title: '...' }, ...]
+    const galleriesToRender = [];
+
+    if (Array.isArray(project.galleries) && project.galleries.length) {
+        project.galleries.forEach(g => {
+            galleriesToRender.push({
+                gallery: Array.isArray(g.gallery) ? g.gallery : [],
+                layout: g.layout ?? g.galleryLayout ?? [],
+                title: g.title ?? ''
+            });
+        });
+    } else if (Array.isArray(project.gallery) && project.gallery.length) {
+        // Backwards compatibility: single gallery
+        galleriesToRender.push({
+            gallery: project.gallery,
+            layout: project.galleryLayout ?? [],
+            title: project.galleryTitle ?? ''
+        });
+    }
+
+    currentGalleries = galleriesToRender;
+
+    // Build lightbox items (flatten across galleries) and mapping
+    setupLightboxItems(galleriesToRender);
+
+    // Render galleries
+    renderAllGalleries(galleriesToRender);
 
     // Popola i dettagli
     if (project.details) {
@@ -50,12 +73,15 @@ function loadProjectDetail() {
 
     // Popola i tags
     const tagsContainer = document.getElementById('projectTags');
-    project.tags.forEach(tag => {
-        const tagElement = document.createElement('span');
-        tagElement.className = 'tag';
-        tagElement.textContent = tag;
-        tagsContainer.appendChild(tagElement);
-    });
+    if (tagsContainer && Array.isArray(project.tags)) {
+        tagsContainer.innerHTML = '';
+        project.tags.forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag';
+            tagElement.textContent = tag;
+            tagsContainer.appendChild(tagElement);
+        });
+    }
 
     // Bottom text blocks (optional)
     loadProjectBlocks(project.blocks);
@@ -124,26 +150,57 @@ function isTextItem(item) {
     return item?.type === 'text';
 }
 
-function setupLightboxItems(gallery) {
+function setupLightboxItems(galleries) {
     lightboxItems = [];
-    galleryIndexToLightboxIndex = new Map();
+    galleryKeyToLightboxIndex = new Map();
 
-    gallery.forEach((item, galleryIndex) => {
-        if (isImageItem(item) && item?.src) {
-            const lbIndex = lightboxItems.length;
-            lightboxItems.push(item);
-            galleryIndexToLightboxIndex.set(galleryIndex, lbIndex);
+    galleries.forEach((g, gIdx) => {
+        const gallery = Array.isArray(g.gallery) ? g.gallery : [];
+        gallery.forEach((item, idx) => {
+            if (isImageItem(item) && item?.src) {
+                const lbIndex = lightboxItems.length;
+                lightboxItems.push(item);
+                galleryKeyToLightboxIndex.set(`${gIdx}:${idx}`, lbIndex);
+            }
+        });
+    });
+}
+
+function renderAllGalleries(galleries) {
+    const galleryGrid = document.getElementById('galleryGrid');
+    if (!galleryGrid) return;
+    galleryGrid.innerHTML = '';
+
+    galleries.forEach((g, gIdx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'project-gallery';
+        if (g.title) {
+            const h = document.createElement('h3');
+            h.className = 'gallery-title';
+            h.textContent = g.title;
+            wrapper.appendChild(h);
         }
+
+        // container for this gallery's content
+        const galleryContainer = document.createElement('div');
+        galleryContainer.className = 'gallery-container';
+        wrapper.appendChild(galleryContainer);
+
+        loadGallery(g.gallery, g.layout, gIdx, galleryContainer);
+
+        galleryGrid.appendChild(wrapper);
     });
 }
 
 // Funzione per caricare la gallery con sezioni di layout custom
-function loadGallery(gallery, galleryLayout) {
-    const galleryGrid = document.getElementById('galleryGrid');
-    galleryGrid.innerHTML = ''; // Reset
-    
+function loadGallery(gallery, galleryLayout, galleryIdx = 0, parentContainer = null) {
+    const galleryGrid = parentContainer || document.getElementById('galleryGrid');
+    if (!galleryGrid) return;
+
+    // If this gallery has no specific layout, render a simple grid inside a container
     if (!galleryLayout || galleryLayout.length === 0) {
-        // Fallback: se non c'è layout specifico, visualizza tutto in grid dinamico
+        const grid = document.createElement('div');
+        grid.className = 'gallery-grid gallery-grid-simple';
         gallery.forEach((item, index) => {
             const galleryItem = document.createElement('div');
             galleryItem.className = 'gallery-item';
@@ -151,21 +208,23 @@ function loadGallery(gallery, galleryLayout) {
             galleryItem.style.animation = `fadeIn 0.6s ease forwards`;
             galleryItem.style.animationDelay = `${index * 0.05}s`;
 
-            const node = createGalleryNode(item, index, galleryItem);
+            const node = createGalleryNode(item, `${galleryIdx}:${index}`, galleryItem);
             if (node) galleryItem.appendChild(node);
-            galleryGrid.appendChild(galleryItem);
+            grid.appendChild(galleryItem);
         });
+
+        galleryGrid.appendChild(grid);
         return;
     }
-    
-    // Raggruppa le immagini per sezione
+
+    // Raggruppa le immagini per sezione (sections are local to this gallery)
     const sections = {};
-    gallery.forEach((item, galleryIndex) => {
+    gallery.forEach((item, localIndex) => {
         const section = item.section || 0;
         if (!sections[section]) sections[section] = [];
-        sections[section].push({ item, galleryIndex });
+        sections[section].push({ item, localIndex });
     });
-    
+
     // Crea un wrapper per ogni sezione con il layout corretto
     galleryLayout.forEach((cols, sectionIndex) => {
         const sectionWrapper = document.createElement('div');
@@ -174,26 +233,26 @@ function loadGallery(gallery, galleryLayout) {
         sectionWrapper.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
         sectionWrapper.style.gap = '1rem';
         sectionWrapper.style.marginBottom = '1rem';
-        
+
         const sectionImages = sections[sectionIndex] || [];
-        
-        sectionImages.forEach(({ item, galleryIndex }, index) => {
+
+        sectionImages.forEach(({ item, localIndex }, index) => {
             const galleryItem = document.createElement('div');
             galleryItem.className = 'gallery-item';
             galleryItem.style.opacity = '0';
             galleryItem.style.animation = `fadeIn 0.6s ease forwards`;
             galleryItem.style.animationDelay = `${index * 0.05}s`;
 
-            const node = createGalleryNode(item, galleryIndex, galleryItem);
+            const node = createGalleryNode(item, `${galleryIdx}:${localIndex}`, galleryItem);
             if (node) galleryItem.appendChild(node);
             sectionWrapper.appendChild(galleryItem);
         });
-        
+
         galleryGrid.appendChild(sectionWrapper);
     });
 }
 
-function createGalleryNode(item, galleryIndex, galleryItemEl) {
+function createGalleryNode(item, galleryKey, galleryItemEl) {
     if (isTextItem(item)) {
         // Make it a full-width horizontal section within the grid
         galleryItemEl?.classList.add('gallery-item--full');
@@ -270,10 +329,10 @@ function createGalleryNode(item, galleryIndex, galleryItemEl) {
 
     const img = document.createElement('img');
     img.src = item.src;
-    img.alt = item.alt || `Gallery item ${galleryIndex + 1}`;
+    img.alt = item.alt || `Gallery item`;
     img.className = 'gallery-image';
 
-    const lbIndex = galleryIndexToLightboxIndex.get(galleryIndex);
+    const lbIndex = galleryKeyToLightboxIndex.get(String(galleryKey));
     if (lbIndex !== undefined) {
         img.addEventListener('click', () => openLightbox(lbIndex));
     }
@@ -327,11 +386,12 @@ function prevImage() {
 
 function updateLightboxCounter() {
     if (!lightboxItems.length) {
-        document.getElementById('lightboxCounter').textContent = '';
+        const ctr = document.getElementById('lightboxCounter');
+        if (ctr) ctr.textContent = '';
         return;
     }
-    document.getElementById('lightboxCounter').textContent = 
-        `${currentImageIndex + 1} / ${lightboxItems.length}`;
+    const ctr = document.getElementById('lightboxCounter');
+    if (ctr) ctr.textContent = `${currentImageIndex + 1} / ${lightboxItems.length}`;
 }
 
 // Setup Lightbox Event Listeners
@@ -341,43 +401,47 @@ function setupLightboxListeners() {
     const prevBtn = document.querySelector('.lightbox-prev');
     const nextBtn = document.querySelector('.lightbox-next');
     
-    closeBtn.addEventListener('click', closeLightbox);
-    prevBtn.addEventListener('click', prevImage);
-    nextBtn.addEventListener('click', nextImage);
+    if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
+    if (prevBtn) prevBtn.addEventListener('click', prevImage);
+    if (nextBtn) nextBtn.addEventListener('click', nextImage);
     
     // Click on modal background to close
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeLightbox();
-    });
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeLightbox();
+        });
+    }
     
     // Keyboard navigation
     document.addEventListener('keydown', (e) => {
-        if (modal.classList.contains('active')) {
-            if (e.key === 'ArrowRight') nextImage();
-            if (e.key === 'ArrowLeft') prevImage();
-            if (e.key === 'Escape') closeLightbox();
-        }
+        if (!modal || !modal.classList.contains('active')) return;
+        if (e.key === 'ArrowRight') nextImage();
+        if (e.key === 'ArrowLeft') prevImage();
+        if (e.key === 'Escape') closeLightbox();
     });
 }
 
 // Funzione per caricare i dettagli
 function loadDetails(details) {
     const detailsContainer = document.getElementById('projectDetails');
-    
+    if (!detailsContainer) return;
+
+    detailsContainer.innerHTML = '';
+
     const detailsList = document.createElement('ul');
     detailsList.className = 'details-list';
-    
+
     for (const [key, value] of Object.entries(details)) {
         const li = document.createElement('li');
         li.className = 'detail-item';
-        
+
         const label = document.createElement('span');
         label.className = 'detail-label';
         label.textContent = key.charAt(0).toUpperCase() + key.slice(1);
-        
+
         const valueSpan = document.createElement('span');
         valueSpan.className = 'detail-value';
-        
+
         if (key === 'link') {
             const a = document.createElement('a');
             a.href = value;
@@ -387,11 +451,11 @@ function loadDetails(details) {
         } else {
             valueSpan.textContent = value;
         }
-        
+
         li.appendChild(label);
         li.appendChild(valueSpan);
         detailsList.appendChild(li);
     }
-    
+
     detailsContainer.appendChild(detailsList);
 }
